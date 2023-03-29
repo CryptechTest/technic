@@ -312,6 +312,26 @@ local function calculate_object_center(object)
 	return {x=0, y=0, z=0}
 end
 
+
+local function radiation_sound(object, dmg)
+	return radiation_sound(object, dmg, false)
+end
+
+local function radiation_sound(object, dmg, force)
+	local played = false
+	if (object:is_player()) then
+		-- play geiger counter sound
+		if math.random(0, 10) <= math.max(1, math.min(5, dmg/2)) or force then
+			local fade = 0.1
+			local pitch = math.min(1, (math.max(1, math.max(dmg, 0.88))/2) + math.random(-0.025, 0.025)) 
+			local gain = math.min(0.64, math.max(2, dmg)/25)
+			minetest.sound_play({name = "radiant_damage_geiger", fade = fade, pitch = pitch, gain = gain}, {to_player=object:get_player_name()})
+			played = true
+		end
+	end
+	return played
+end
+
 local function dmg_object(pos, object, strength)
 	local obj_pos = vector.add(object:get_pos(), calculate_object_center(object))
 	local mul
@@ -326,16 +346,11 @@ local function dmg_object(pos, object, strength)
 	end
 	if (mul ~= nil and dmg > 0) then
 		radiated = true
-	enable_entity_radiation_damage
+	end
+	local sound_played = false
 	-- 3d armor hook
-	if minetest.get_modpath("3d_armor") and object:is_player() and radiated then
-		-- play geiger counter sound
-		if math.random(0, 10) <= math.max(1, math.min(5, dmg/2)) then
-			local fade = 0.1
-			local pitch = math.min(1, (math.max(1, math.max(dmg, 0.88))/2) + math.random(-0.025, 0.025)) 
-			local gain = math.min(0.64, math.max(2, dmg)/25)
-			minetest.sound_play({name = "radiant_damage_geiger", fade = fade, pitch = pitch, gain = gain}, {to_player=object:get_player_name()})
-		end
+	if minetest.get_modpath("3d_armor") and radiated then
+		sound_played = radiation_sound(object, dmg)
 		-- damage armor..
 		local _, armor_inv = armor.get_valid_player(armor, object, "[technic]")
 		if armor_inv then
@@ -364,6 +379,10 @@ local function dmg_object(pos, object, strength)
 	if longterm_damage and object:is_player() then
 		local pn = object:get_player_name()
 		radiated_players[pn] = (radiated_players[pn] or 0) + dmg
+	end
+	-- 3d armor hook for sound
+	if minetest.get_modpath("3d_armor") and not sound_played and dmg > 0 then
+		radiation_sound(object, dmg, true)
 	end
 end
 
