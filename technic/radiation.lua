@@ -47,7 +47,7 @@ local rad_resistance_node = {
 	["default:dirt_with_grass_footsteps"] = 8.2,
 	["default:dirt_with_snow"] = 8.2,
 	["default:glass"] = 17,
-	["default:goldblock"] = 170,
+	["default:goldblock"] = 72, -- gold is a little less than lead
 	["default:gravel"] = 10,
 	["default:ice"] = 5.6,
 	["default:lava_flowing"] = 8.5,
@@ -154,6 +154,7 @@ local rad_resistance_node = {
 	["technic:corium_flowing"] = 40,
 	["technic:corium_source"] = 80,
 	["technic:granite"] = 18,
+	["technic:mineral_lead"] = 64,
 	["technic:lead_block"] = 80,
 	["technic:marble"] = 18,
 	["technic:marble_bricks"] = 18,
@@ -170,6 +171,8 @@ local rad_resistance_group = {
 	tree = 3.4,
 	uranium_block = 500,
 	wood = 1.7,
+	mese_radiation_shield = 40,
+	mese_radiation_amplifier = 0.6,
 }
 local cache_radiation_resistance = {}
 local function node_radiation_resistance(node_name)
@@ -312,15 +315,46 @@ end
 local function dmg_object(pos, object, strength)
 	local obj_pos = vector.add(object:get_pos(), calculate_object_center(object))
 	local mul
+	local radiated = false
 	if armor_enabled or entity_damage then
 		-- we need to check may the object be damaged even if armor is disabled
 		mul = calculate_damage_multiplier(object)
-		if mul == 0 then
-			return
-		end
 	end
 	local dmg = calculate_base_damage(pos, obj_pos, strength)
 	if not dmg then
+		return
+	end
+	if (mul ~= nil and dmg > 0) then
+		radiated = true
+	enable_entity_radiation_damage
+	-- 3d armor hook
+	if minetest.get_modpath("3d_armor") and object:is_player() and radiated then
+		-- play geiger counter sound
+		if math.random(0, 10) <= math.max(1, math.min(5, dmg/2)) then
+			local fade = 0.1
+			local pitch = math.min(1, (math.max(1, math.max(dmg, 0.88))/2) + math.random(-0.025, 0.025)) 
+			local gain = math.min(0.64, math.max(2, dmg)/25)
+			minetest.sound_play({name = "radiant_damage_geiger", fade = fade, pitch = pitch, gain = gain}, {to_player=object:get_player_name()})
+		end
+		-- damage armor..
+		local _, armor_inv = armor.get_valid_player(armor, object, "[technic]")
+		if armor_inv then
+			local armor_list = armor_inv:get_list("armor")
+			for i, stack in pairs(armor_list) do
+				if not stack:is_empty() then
+					local name = stack:get_name()
+					if name:match('lead') then
+						local use = minetest.get_item_group(name, "armor_use") * dmg * 0.1
+						if use then
+							armor:damage(object, i, stack, use)
+						end
+					end
+				end
+			end
+		end
+	end
+	-- abort if blocked
+	if mul == 0 then
 		return
 	end
 	if armor_enabled then
