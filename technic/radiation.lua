@@ -261,7 +261,7 @@ local function apply_fractional_damage(o, dmg)
 	if math.random() < dmg - dmg_int then
 		dmg_int = dmg_int + 1
 	end
-	if dmg_int > 0 then
+	if dmg_int > 0 and o:get_hp() > 0 then
 		local new_hp = math.max(o:get_hp() - dmg_int, 0)
 		o:set_hp(new_hp)
 		return new_hp == 0
@@ -319,7 +319,7 @@ end
 
 local function radiation_sound(object, dmg, force)
 	local played = false
-	if (object:is_player()) then
+	if (object:is_player() and object:get_hp() > 0) then
 		-- play geiger counter sound
 		if math.random(0, 10) <= math.max(1, math.min(5, dmg/2)) or force then
 			local fade = 0.1
@@ -390,9 +390,8 @@ local rad_dmg_mult_sqrt = math.sqrt(1 / rad_dmg_cutoff)
 local function dmg_abm(pos, node)
 	local strength = minetest.get_item_group(node.name, "radioactive")
 	local max_dist = strength * rad_dmg_mult_sqrt
-	for _, o in pairs(minetest.get_objects_inside_radius(pos,
-			max_dist + abdomen_offset)) do
-		if (entity_damage or o:is_player()) and o:get_hp() > 0 then
+	for _, o in pairs(minetest.get_objects_inside_radius(pos, max_dist + abdomen_offset)) do
+		if o ~= nil and (entity_damage or o:is_player()) and o:get_hp() > 0 then
 			dmg_object(pos, o, strength)
 		end
 	end
